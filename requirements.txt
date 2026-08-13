@@ -5,6 +5,7 @@ chromadb
 rank-bm25
 pymupdf
 watchdog
+streamlit
 python-dotenv
 loguru
 pandas
