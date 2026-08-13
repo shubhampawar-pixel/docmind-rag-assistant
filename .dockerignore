@@ -1,0 +1,9 @@
+.venv
+venv
+__pycache__
+*.pyc
+.env
+data/chroma_db
+data/bm25_cache
+.pytest_cache
+.git

@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Environment
+.env
+.venv/
+venv/
+env/
+
+# Data (auto-generated, don't commit)
+data/chroma_db/
+data/bm25_cache/
+data/documents/*.pdf
+*.pdf
+*.docx
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temp files from spec extraction
+extract.ps1
+extract2.ps1
+spec_extracted.txt
+
+# HuggingFace model cache
+.cache/

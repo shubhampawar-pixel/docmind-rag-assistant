@@ -1,0 +1,33 @@
+# Core
+langchain>=0.3,<0.4
+langchain-community>=0.3,<0.4
+langchain-ollama>=0.3,<0.4
+
+# Google Gemini (cloud LLM fallback / primary)
+langchain-google-genai>=2.0,<3.0
+
+# Embeddings & Reranking
+sentence-transformers>=3.0,<4.0
+torch>=2.3,<3.0
+
+# Vector DB
+chromadb>=0.5,<0.7
+
+# BM25
+rank-bm25>=0.2,<0.3
+
+# PDF
+pymupdf>=1.24,<2.0
+
+# File watching
+watchdog>=4.0,<5.0
+
+# UI
+streamlit>=1.35,<2.0
+
+# Utils
+python-dotenv>=1.0,<2.0
+loguru>=0.7,<1.0
+
+# Testing
+pytest>=8.0,<9.0
