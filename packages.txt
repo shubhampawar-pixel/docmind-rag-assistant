@@ -1,2 +1,3 @@
-# System packages needed for HF Spaces (if any)
-# Currently none required — all dependencies are pure Python.
+build-essential
+cmake
+g++
