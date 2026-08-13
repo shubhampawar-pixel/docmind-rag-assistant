@@ -13,7 +13,7 @@ import urllib.error
 from loguru import logger
 
 from app.config import (
-    GEMINI_API_KEY,
+    get_gemini_api_key,
     GEMINI_MODEL,
     OLLAMA_MODEL,
     OLLAMA_BASE_URL,
@@ -48,21 +48,23 @@ def _is_ollama_running() -> bool:
         return False
 
 
-def get_llm(temperature: float = 0.1, provider: str | None = None):
+def get_llm(temperature: float = 0.1, provider: str | None = None, api_key: str | None = None):
     """
     Get the appropriate LLM instance based on configuration.
 
     Args:
         temperature: LLM temperature (0.0-1.0).
         provider: Override for LLM_PROVIDER config. One of "ollama", "gemini", "auto".
+        api_key: Optional explicit Gemini API key.
 
     Returns:
         A LangChain chat model instance.
     """
     effective_provider = provider or LLM_PROVIDER
+    active_key = (api_key or "").strip() or get_gemini_api_key()
 
     if effective_provider == "gemini":
-        return _get_gemini_llm(temperature)
+        return _get_gemini_llm(temperature, active_key)
 
     elif effective_provider == "ollama":
         return _get_ollama_llm(temperature)
@@ -71,22 +73,21 @@ def get_llm(temperature: float = 0.1, provider: str | None = None):
         if _is_ollama_running():
             logger.info("Auto mode: Ollama is running — using local model")
             return _get_ollama_llm(temperature)
-        elif GEMINI_API_KEY:
+        elif active_key:
             logger.info("Auto mode: Ollama not available — falling back to Gemini API")
-            return _get_gemini_llm(temperature)
+            return _get_gemini_llm(temperature, active_key)
         else:
             raise RuntimeError(
-                "Auto mode: Ollama is not running and no GEMINI_API_KEY configured. "
-                "Please either start Ollama or set GEMINI_API_KEY in your .env file."
+                "No LLM available. Please provide a Gemini API Key in the sidebar or start Ollama locally."
             )
 
 
-def _get_gemini_llm(temperature: float):
+def _get_gemini_llm(temperature: float, api_key: str):
     """Create a Gemini LLM instance."""
-    if not GEMINI_API_KEY:
+    if not api_key:
         raise RuntimeError(
-            "GEMINI_API_KEY is not set. Add it to your .env file: "
-            "GEMINI_API_KEY=your_key_here"
+            "Gemini API key is required. Please enter your API Key in the sidebar settings "
+            "or configure GEMINI_API_KEY in Streamlit Secrets."
         )
 
     logger.info(f"Using Google Gemini API with model: {GEMINI_MODEL}")
@@ -94,7 +95,7 @@ def _get_gemini_llm(temperature: float):
 
     return ChatGoogleGenerativeAI(
         model=GEMINI_MODEL,
-        google_api_key=GEMINI_API_KEY,
+        google_api_key=api_key,
         temperature=temperature,
     )
 
@@ -152,6 +153,7 @@ def ask(
     chunks: list,
     temperature: float = 0.1,
     provider: str | None = None,
+    api_key: str | None = None,
 ) -> str:
     """
     Ask a question with retrieved context chunks.
@@ -161,13 +163,14 @@ def ask(
         chunks: Retrieved and reranked chunks.
         temperature: LLM temperature.
         provider: Override LLM provider ("ollama", "gemini", "auto").
+        api_key: Optional Gemini API key.
 
     Returns:
         The LLM's answer string.
     """
     from langchain_core.prompts import ChatPromptTemplate
 
-    llm = get_llm(temperature=temperature, provider=provider)
+    llm = get_llm(temperature=temperature, provider=provider, api_key=api_key)
 
     context = build_context(chunks)
 

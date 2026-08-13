@@ -34,15 +34,35 @@ OLLAMA_MODEL = "qwen2.5:0.5b"
 OLLAMA_BASE_URL = "http://localhost:11434"
 
 # ─── LLM (Cloud — Google Gemini) ─────────────────────────────────────────────
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+def get_gemini_api_key() -> str:
+    """Retrieve Gemini API key from environment or Streamlit secrets."""
+    key = os.getenv("GEMINI_API_KEY", "").strip()
+    if not key:
+        try:
+            import streamlit as st
+            if hasattr(st, "secrets") and "GEMINI_API_KEY" in st.secrets:
+                key = str(st.secrets["GEMINI_API_KEY"]).strip()
+        except Exception:
+            pass
+    return key
+
+GEMINI_API_KEY = get_gemini_api_key()
 GEMINI_MODEL = "gemini-2.0-flash"
 
 # ─── LLM Provider Toggle ─────────────────────────────────────────────────────
 # Options: "auto" | "gemini" | "ollama"
-#   auto   — try Ollama first, fall back to Gemini if Ollama is not running
-#   gemini — always use Gemini API (requires GEMINI_API_KEY)
-#   ollama — always use local Ollama (requires Ollama running)
-LLM_PROVIDER = os.getenv("LLM_PROVIDER", "auto")
+def get_default_provider() -> str:
+    prov = os.getenv("LLM_PROVIDER", "").strip()
+    if not prov:
+        try:
+            import streamlit as st
+            if hasattr(st, "secrets") and "LLM_PROVIDER" in st.secrets:
+                prov = str(st.secrets["LLM_PROVIDER"]).strip()
+        except Exception:
+            pass
+    return prov if prov in ["auto", "gemini", "ollama"] else "gemini"
+
+LLM_PROVIDER = get_default_provider()
 
 # ─── Chunking ────────────────────────────────────────────────────────────────
 CHUNK_SIZE = 400        # tokens (approximate)

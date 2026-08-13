@@ -17,85 +17,145 @@ sys.path.insert(0, str(PROJECT_ROOT))
 import streamlit as st
 from loguru import logger
 
-from app.config import DOCS_DIR, RERANK_TOP_N, RETRIEVAL_TOP_K
+from app.config import DOCS_DIR, RERANK_TOP_N, RETRIEVAL_TOP_K, GEMINI_API_KEY, LLM_PROVIDER
 
 # ─── Page Config ─────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="DocMind 🧠",
+    page_title="DocMind — Agentic RAG Assistant",
     page_icon="🧠",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-# ─── Custom CSS ──────────────────────────────────────────────────────────────
+# ─── High-Contrast & Premium Design CSS ──────────────────────────────────────
 st.markdown("""
 <style>
-    /* Main container */
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+    html, body, [class*="css"] {
+        font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+
+    /* Main App Background & Typography */
     .stApp {
-        background-color: #0e1117;
+        background: radial-gradient(circle at 10% 20%, #111827 0%, #0b0f19 90%);
+        color: #f1f5f9;
     }
 
-    /* Sidebar styling */
+    /* Headings */
+    h1, h2, h3, h4, h5, h6 {
+        color: #ffffff !important;
+        font-weight: 700 !important;
+        letter-spacing: -0.02em;
+    }
+
+    /* Sidebar Styling */
     [data-testid="stSidebar"] {
-        background-color: #161b22;
+        background-color: #0f172a !important;
+        border-right: 1px solid #1e293b;
     }
 
-    /* Warning banner for NOT_GROUNDED */
-    .warning-banner {
-        background-color: #3d2e00;
-        border: 1px solid #f0ad4e;
-        border-radius: 8px;
-        padding: 12px 16px;
-        margin-bottom: 12px;
-        color: #f0ad4e;
-        font-size: 0.9em;
+    [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 {
+        color: #f8fafc !important;
     }
 
-    /* Source expander styling */
-    .source-chunk {
-        background-color: #1a1f29;
-        border-left: 3px solid #58a6ff;
-        padding: 10px 14px;
-        margin: 6px 0;
-        border-radius: 0 6px 6px 0;
-        font-size: 0.85em;
-        color: #c9d1d9;
+    [data-testid="stSidebar"] p, [data-testid="stSidebar"] label, [data-testid="stSidebar"] span {
+        color: #cbd5e1 !important;
     }
 
-    .source-meta {
-        color: #58a6ff;
-        font-weight: 600;
-        font-size: 0.8em;
-        margin-bottom: 4px;
+    /* Gradient Brand Title */
+    .brand-title {
+        background: linear-gradient(135deg, #60a5fa 0%, #a855f7 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        font-size: 2rem;
+        font-weight: 800;
+        margin-bottom: 0;
     }
 
-    /* Stats card */
+    .brand-subtitle {
+        color: #94a3b8;
+        font-size: 0.85rem;
+        margin-top: -4px;
+        margin-bottom: 1rem;
+    }
+
+    /* Stats Card Component */
     .stats-card {
-        background: linear-gradient(135deg, #1a1f29, #21262d);
-        border: 1px solid #30363d;
-        border-radius: 10px;
-        padding: 16px;
-        margin: 8px 0;
+        background: linear-gradient(145deg, #1e293b 0%, #0f172a 100%);
+        border: 1px solid #334155;
+        border-radius: 12px;
+        padding: 14px 18px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
     }
 
     .stats-number {
-        font-size: 1.8em;
-        font-weight: 700;
-        color: #58a6ff;
+        font-size: 1.75rem;
+        font-weight: 800;
+        color: #38bdf8;
+        line-height: 1.2;
     }
 
     .stats-label {
-        font-size: 0.85em;
-        color: #8b949e;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #94a3b8;
+        margin-top: 4px;
     }
 
-    /* Log panel */
+    /* Source Reference Chunk Cards */
+    .source-chunk {
+        background-color: #1e293b;
+        border-left: 4px solid #38bdf8;
+        border-radius: 0 10px 10px 0;
+        padding: 12px 16px;
+        margin: 10px 0;
+        color: #e2e8f0;
+        font-size: 0.875rem;
+        line-height: 1.6;
+        border-top: 1px solid #334155;
+        border-bottom: 1px solid #334155;
+        border-right: 1px solid #334155;
+    }
+
+    .source-meta {
+        color: #38bdf8;
+        font-weight: 700;
+        font-size: 0.8rem;
+        margin-bottom: 6px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    /* Warning Banner for Hallucination / Grounding Detection */
+    .warning-banner {
+        background: rgba(234, 88, 12, 0.15);
+        border: 1px solid #f97316;
+        border-radius: 10px;
+        padding: 12px 16px;
+        margin-bottom: 14px;
+        color: #fdba74;
+        font-size: 0.88rem;
+    }
+
+    /* Pipeline Log Entry */
     .log-entry {
-        font-family: 'Courier New', monospace;
-        font-size: 0.75em;
-        color: #8b949e;
-        padding: 2px 0;
-        border-bottom: 1px solid #21262d;
+        font-family: 'JetBrains Mono', 'Courier New', monospace;
+        font-size: 0.78rem;
+        color: #94a3b8;
+        padding: 6px 8px;
+        border-radius: 4px;
+        margin-bottom: 4px;
+        background: #090d16;
+        border: 1px solid #1e293b;
+    }
+
+    /* Chat input & containers */
+    .stChatFloatingInputContainer {
+        background: transparent;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -108,24 +168,20 @@ if "messages" not in st.session_state:
 if "watcher_started" not in st.session_state:
     st.session_state.watcher_started = False
 
-if "initialized" not in st.session_state:
-    st.session_state.initialized = False
-
 if "pipeline_logs" not in st.session_state:
     st.session_state.pipeline_logs = []
 
 
 def add_log(msg: str):
-    """Add a log entry to the pipeline log panel."""
+    """Add a timestamped log entry to the pipeline log panel."""
     import datetime
     ts = datetime.datetime.now().strftime("%H:%M:%S")
     st.session_state.pipeline_logs.append(f"[{ts}] {msg}")
-    # Keep last 50 entries
-    if len(st.session_state.pipeline_logs) > 50:
-        st.session_state.pipeline_logs = st.session_state.pipeline_logs[-50:]
+    if len(st.session_state.pipeline_logs) > 60:
+        st.session_state.pipeline_logs = st.session_state.pipeline_logs[-60:]
 
 
-# ─── Initialization (runs once) ─────────────────────────────────────────────
+# ─── Pipeline Initialization (cached) ─────────────────────────────────────────
 @st.cache_resource
 def initialize_pipeline():
     """Initialize the ingestion pipeline and BM25 index on startup."""
@@ -134,18 +190,14 @@ def initialize_pipeline():
     from app.ingestion.embedder import embed_and_store, get_collection_stats
     from app.retrieval.bm25_index import rebuild_from_chroma, load_cache
 
-    # Check if there are existing documents in ChromaDB
     stats = get_collection_stats()
 
     if stats["total_chunks"] == 0:
-        # Index any PDFs already in the documents folder
-        logger.info("No documents in ChromaDB — checking for PDFs to index...")
         pages = load_all_pdfs(DOCS_DIR)
         if pages:
             chunks = chunk_pages(pages)
             embed_and_store(chunks)
 
-    # Build or load BM25 index
     if not load_cache():
         rebuild_from_chroma()
 
@@ -154,13 +206,17 @@ def initialize_pipeline():
 
 @st.cache_resource
 def start_folder_watcher():
-    """Start the folder watcher (runs once)."""
-    from app.watcher.folder_watch import start_watcher
-    return start_watcher()
+    """Start the background folder watcher daemon."""
+    try:
+        from app.watcher.folder_watch import start_watcher
+        return start_watcher()
+    except Exception as e:
+        logger.warning(f"Watchdog could not start: {e}")
+        return None
 
 
-# ─── Run Initialization ─────────────────────────────────────────────────────
-with st.spinner("🔄 Initializing DocMind..."):
+# ─── Run Startup ─────────────────────────────────────────────────────────────
+with st.spinner("Initializing DocMind RAG Engine..."):
     initialize_pipeline()
 
 if not st.session_state.watcher_started:
@@ -170,11 +226,11 @@ if not st.session_state.watcher_started:
 
 # ─── Sidebar ────────────────────────────────────────────────────────────────
 with st.sidebar:
-    st.markdown("# 🧠 DocMind")
-    st.markdown("*Agentic RAG Knowledge Assistant*")
+    st.markdown('<div class="brand-title">DocMind 🧠</div>', unsafe_allow_html=True)
+    st.markdown('<div class="brand-subtitle">Agentic RAG Knowledge Assistant</div>', unsafe_allow_html=True)
     st.divider()
 
-    # Document stats
+    # Document & Collection Metrics
     from app.ingestion.embedder import get_collection_stats
     stats = get_collection_stats()
 
@@ -194,18 +250,18 @@ with st.sidebar:
             unsafe_allow_html=True,
         )
 
-    # Indexed documents list
+    # List of Indexed Files
+    st.markdown("### 📄 Indexed Corpus")
     if stats["sources"]:
-        st.markdown("### 📄 Indexed Documents")
         for source in stats["sources"]:
-            st.markdown(f"- `{source}`")
+            st.markdown(f"• `{source}`")
     else:
-        st.info("No documents indexed yet. Drop PDFs into `data/documents/` or upload below.")
+        st.caption("No documents in vector index. Upload PDFs below.")
 
     st.divider()
 
-    # File upload
-    st.markdown("### 📤 Upload PDF")
+    # Multi-file PDF Upload
+    st.markdown("### 📤 Upload PDFs")
     uploaded_files = st.file_uploader(
         "Upload PDF documents",
         type=["pdf"],
@@ -219,10 +275,9 @@ with st.sidebar:
             if not os.path.exists(save_path):
                 with open(save_path, "wb") as f:
                     f.write(uploaded_file.getbuffer())
-                st.success(f"✅ Uploaded: {uploaded_file.name}")
+                st.success(f"Uploaded: {uploaded_file.name}")
 
-                # Trigger ingestion
-                with st.spinner(f"📊 Indexing {uploaded_file.name}..."):
+                with st.spinner(f"Embedding {uploaded_file.name}..."):
                     from app.ingestion.loader import load_pdf
                     from app.ingestion.chunker import chunk_pages
                     from app.ingestion.embedder import embed_and_store
@@ -233,21 +288,17 @@ with st.sidebar:
                         chunks = chunk_pages(pages)
                         num_added = embed_and_store(chunks)
                         rebuild_from_chroma()
-                        st.success(f"✅ Indexed: {num_added} chunks added")
+                        st.success(f"Indexed {num_added} chunks!")
                         add_log(f"Indexed {uploaded_file.name}: {num_added} chunks")
                     else:
-                        st.warning("⚠️ No text could be extracted from this PDF")
-                        add_log(f"Failed to extract text from {uploaded_file.name}")
+                        st.warning(f"No text extracted from {uploaded_file.name}")
+                        add_log(f"Failed extraction: {uploaded_file.name}")
 
                 st.rerun()
-            else:
-                st.info(f"📄 {uploaded_file.name} is already indexed")
 
-    st.divider()
-
-    # Re-index button
+    # Re-index Corpus Button
     if st.button("🔄 Re-index All Documents", use_container_width=True):
-        with st.spinner("Re-indexing all documents..."):
+        with st.spinner("Rebuilding ChromaDB and BM25 index..."):
             from app.ingestion.embedder import clear_collection
             from app.ingestion.loader import load_all_pdfs
             from app.ingestion.chunker import chunk_pages
@@ -259,82 +310,95 @@ with st.sidebar:
             if pages:
                 chunks = chunk_pages(pages)
                 num_stored = embed_and_store(chunks)
-                add_log(f"Re-indexed all: {num_stored} chunks from {len(set(p['source'] for p in pages))} docs")
+                add_log(f"Re-indexed {num_stored} chunks across {len(set(p['source'] for p in pages))} docs")
             rebuild_from_chroma()
 
-        st.success("✅ Re-indexing complete!")
+        st.success("Re-indexing complete!")
         st.rerun()
 
     st.divider()
 
-    # Settings
-    with st.expander("⚙️ Settings", expanded=True):
+    # Settings & Model Controls
+    with st.expander("⚙️ Inference & RAG Settings", expanded=True):
+        user_api_key = st.text_input(
+            "Gemini API Key",
+            type="password",
+            value=GEMINI_API_KEY,
+            placeholder="AIzaSy...",
+            help="Get your free key at https://aistudio.google.com/apikey",
+        )
+
         llm_provider = st.selectbox(
             "LLM Provider",
-            options=["auto", "gemini", "ollama"],
-            index=0,
+            options=["gemini", "auto", "ollama"],
+            index=0 if LLM_PROVIDER == "gemini" else (1 if LLM_PROVIDER == "auto" else 2),
             help=(
-                "**auto**: Try local Ollama first, fall back to Gemini API.\n\n"
-                "**gemini**: Always use Google Gemini API (needs GEMINI_API_KEY).\n\n"
-                "**ollama**: Always use local Ollama (needs Ollama running)."
+                "**gemini**: Google Gemini API (fastest & high accuracy)\n\n"
+                "**auto**: Try local Ollama, fallback to Gemini\n\n"
+                "**ollama**: Local Ollama model only"
             ),
         )
+
         temperature = st.slider(
-            "Temperature",
+            "Temperature (Creativity)",
             min_value=0.0,
             max_value=1.0,
             value=0.1,
             step=0.05,
-            help="Lower = more precise, Higher = more creative",
+            help="Lower (0.1) = strictly factual and grounded. Higher (0.7) = creative.",
         )
+
         top_k = st.slider(
-            "Top-K (final chunks for answer)",
+            "Top-K Chunks (after Reranker)",
             min_value=1,
-            max_value=20,
+            max_value=15,
             value=RERANK_TOP_N,
             step=1,
-            help="Number of final chunks used for answering after reranking",
+            help="Number of cross-encoder reranked chunks passed into the LLM context window.",
         )
 
 
-# ─── Main Chat Area ─────────────────────────────────────────────────────────
-st.markdown("## 💬 Ask DocMind")
+# ─── Main Interface Tabs ────────────────────────────────────────────────────
+st.markdown("## 💬 Knowledge Assistant")
 
-# ─── Tabs: Chat | Vector DB | Logs ──────────────────────────────────────────
-tab_chat, tab_vectordb, tab_logs = st.tabs(["💬 Chat", "🗄️ Vector DB Explorer", "📋 Pipeline Logs"])
+tab_chat, tab_vectordb, tab_logs = st.tabs([
+    "💬 Interactive Q&A",
+    "🗄️ Vector DB & Embeddings",
+    "📋 Pipeline Execution Trace"
+])
 
+# ─── Tab 2: Vector DB Explorer ──────────────────────────────────────────────
 with tab_vectordb:
-    st.markdown("### 🗄️ ChromaDB Collection Explorer")
+    st.markdown("### 🗄️ ChromaDB & Sparse Index Explorer")
     if stats["total_chunks"] == 0:
-        st.info("No documents indexed yet. Upload PDFs to see embeddings here.")
+        st.info("No documents indexed yet. Upload PDFs using the sidebar to view stored embeddings.")
     else:
         st.markdown(
-            f"**Collection**: `docmind` — **{stats['total_chunks']}** chunks "
-            f"from **{stats['total_documents']}** documents"
+            f"**Active Collection**: `docmind` — **{stats['total_chunks']}** chunks "
+            f"across **{stats['total_documents']}** document(s)."
         )
 
         from app.ingestion.embedder import get_all_documents
         all_docs = get_all_documents()
 
         if all_docs and all_docs.get("ids"):
-            # Show a sample of chunks in a table
             import pandas as pd
             rows = []
-            for i in range(min(len(all_docs["ids"]), 100)):  # Show max 100
+            for i in range(min(len(all_docs["ids"]), 150)):
                 meta = all_docs["metadatas"][i] if all_docs["metadatas"] else {}
                 text = all_docs["documents"][i] if all_docs["documents"] else ""
                 rows.append({
                     "Chunk ID": all_docs["ids"][i],
-                    "Source": meta.get("source", "?"),
+                    "Document": meta.get("source", "?"),
                     "Page": meta.get("page", "?"),
-                    "Text Preview": text[:150] + ("..." if len(text) > 150 else ""),
+                    "Text Content Preview": text[:160] + ("..." if len(text) > 160 else ""),
                 })
 
             df = pd.DataFrame(rows)
-            st.dataframe(df, use_container_width=True, height=400)
+            st.dataframe(df, use_container_width=True, height=360)
 
-            # Per-document breakdown
-            st.markdown("#### 📊 Chunks Per Document")
+            # Document Chunk Distribution
+            st.markdown("#### 📊 Chunk Distribution by Document")
             source_counts = {}
             for meta in all_docs["metadatas"]:
                 src = meta.get("source", "unknown")
@@ -342,86 +406,76 @@ with tab_vectordb:
 
             chart_df = pd.DataFrame(
                 list(source_counts.items()),
-                columns=["Document", "Chunks"],
+                columns=["Document", "Chunk Count"],
             )
             st.bar_chart(chart_df.set_index("Document"))
 
+# ─── Tab 3: Execution Logs ──────────────────────────────────────────────────
 with tab_logs:
-    st.markdown("### 📋 Pipeline Execution Logs")
-    st.caption("Logs from the current session's RAG pipeline operations.")
+    st.markdown("### 📋 Real-Time Pipeline Trace")
+    st.caption("Detailed execution log for query rewriting, hybrid retrieval, reranking, and verification.")
+
     if st.session_state.pipeline_logs:
         for log_entry in reversed(st.session_state.pipeline_logs):
             st.markdown(f'<div class="log-entry">{log_entry}</div>', unsafe_allow_html=True)
     else:
-        st.info("No logs yet. Ask a question or upload a document to see pipeline activity.")
+        st.info("No query logs yet. Ask a question in the chat tab to view real-time pipeline execution.")
 
     if st.button("🗑️ Clear Logs"):
         st.session_state.pipeline_logs = []
         st.rerun()
 
+# ─── Tab 1: Chat Interface ──────────────────────────────────────────────────
 with tab_chat:
-    # Display chat history
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
 
-            # Show sources for assistant messages
             if message["role"] == "assistant" and "sources" in message:
-                # Show grounding warning if applicable
                 if message.get("grounding_status") == "NOT_GROUNDED":
                     st.markdown(
                         '<div class="warning-banner">'
-                        '⚠️ <strong>Warning:</strong> This answer may not be '
-                        'fully grounded in the source documents. '
-                        f'{message.get("grounding_explanation", "")}'
+                        '⚠️ <strong>Hallucination Alert:</strong> This response may not be '
+                        'fully grounded in the context chunks.<br>'
+                        f'<small>{message.get("grounding_explanation", "")}</small>'
                         '</div>',
                         unsafe_allow_html=True,
                     )
 
-                with st.expander(f"📚 Sources ({len(message['sources'])} chunks)"):
+                with st.expander(f"📚 Retrieved Context Sources ({len(message['sources'])} chunks)"):
                     for src in message["sources"]:
                         st.markdown(
                             f'<div class="source-chunk">'
-                            f'<div class="source-meta">'
-                            f'📄 {src["source"]} — Page {src["page"]}'
-                            f'</div>'
-                            f'{src["text"][:500]}{"..." if len(src["text"]) > 500 else ""}'
+                            f'<div class="source-meta">📄 {src["source"]} — Page {src["page"]}</div>'
+                            f'{src["text"]}'
                             f'</div>',
                             unsafe_allow_html=True,
                         )
 
-                # Show pipeline metadata if available
                 if "pipeline_meta" in message:
-                    with st.expander("🔍 Pipeline Details"):
+                    with st.expander("🔍 Agentic Pipeline Telemetry"):
                         meta = message["pipeline_meta"]
-                        st.markdown(f"- **LLM Provider**: `{meta.get('provider', '?')}`")
-                        st.markdown(f"- **Original Query**: `{meta.get('original_query', '?')}`")
-                        st.markdown(f"- **Rewritten Query**: `{meta.get('rewritten_query', '?')}`")
-                        st.markdown(f"- **Hybrid Candidates**: {meta.get('hybrid_count', '?')}")
-                        st.markdown(f"- **Reranked Top-K**: {meta.get('reranked_count', '?')}")
-                        st.markdown(f"- **Grounding**: `{meta.get('grounding_status', '?')}`")
+                        col_a, col_b = st.columns(2)
+                        with col_a:
+                            st.write(f"**LLM Provider**: `{meta.get('provider')}`")
+                            st.write(f"**Original Query**: `{meta.get('original_query')}`")
+                            st.write(f"**Rewritten Query**: `{meta.get('rewritten_query')}`")
+                        with col_b:
+                            st.write(f"**Hybrid Candidates (RRF)**: `{meta.get('hybrid_count')}`")
+                            st.write(f"**Final Reranked Chunks**: `{meta.get('reranked_count')}`")
+                            st.write(f"**Citation Grounding**: `{meta.get('grounding_status')}`")
 
-
-    # Chat input
-    if prompt := st.chat_input("Ask a question about your documents..."):
-        # Check if there are indexed documents
+    # Chat Input Box
+    if prompt := st.chat_input("Ask a question about your uploaded documents..."):
         if stats["total_chunks"] == 0:
-            st.warning(
-                "⚠️ No documents indexed yet! "
-                "Please upload a PDF or drop one into `data/documents/`."
-            )
+            st.warning("⚠️ No documents indexed yet. Please upload a PDF in the sidebar first.")
         else:
-            # Add user message to chat
-            st.session_state.messages.append({
-                "role": "user",
-                "content": prompt,
-            })
+            st.session_state.messages.append({"role": "user", "content": prompt})
             with st.chat_message("user"):
                 st.markdown(prompt)
 
-            # Process the question
             with st.chat_message("assistant"):
-                with st.spinner("🤔 Thinking..."):
+                with st.spinner("Processing through Agentic RAG Pipeline..."):
                     try:
                         from app.llm.ollama_chain import get_llm, ask, build_context
                         from app.agents.query_rewriter import rewrite_query
@@ -429,63 +483,62 @@ with tab_chat:
                         from app.agents.citation_validator import validate_citation
                         from app.retrieval.hybrid import hybrid_search
 
-                        # Get settings from sidebar
-                        temp = temperature
-                        final_top_k = top_k
-                        provider = llm_provider
+                        active_key = user_api_key.strip()
+                        active_provider = llm_provider
+                        active_temp = temperature
+                        final_top_n = top_k
 
-                        add_log(f"Query: {prompt[:80]}...")
-                        add_log(f"LLM Provider: {provider}")
+                        add_log(f"User Query: {prompt}")
+                        add_log(f"Selected Provider: {active_provider} | Temp: {active_temp}")
 
-                        # Step 1: Query Rewriting
-                        add_log("Step 1: Query rewriting...")
-                        llm = get_llm(temperature=temp, provider=provider)
+                        # ── Step 1: Query Rewriting Agent ──
+                        add_log("Agent 1: Evaluating query formulation...")
+                        llm = get_llm(temperature=active_temp, provider=active_provider, api_key=active_key)
                         rewritten_query = rewrite_query(prompt, llm=llm)
-                        add_log(f"Rewritten query: {rewritten_query[:80]}...")
+                        add_log(f"Agent 1 Result: '{rewritten_query}'")
 
-                        # Step 2: Hybrid Retrieval
-                        add_log("Step 2: Hybrid retrieval (BM25 + Dense)...")
+                        # ── Step 2: Hybrid Retrieval (BM25 + Dense) ──
+                        add_log("Retrieval: Running BM25 + Dense vector search (RRF)...")
                         candidates = hybrid_search(rewritten_query)
                         add_log(f"Retrieved {len(candidates)} hybrid candidates")
 
-                        # Step 3: Reranking
-                        add_log(f"Step 3: Cross-encoder reranking → top {final_top_k}...")
-                        top_chunks = rerank(rewritten_query, candidates, top_n=final_top_k)
-                        add_log(f"Reranked to {len(top_chunks)} chunks")
+                        # ── Step 3: Cross-Encoder Reranking Agent ──
+                        add_log(f"Agent 2: Cross-Encoder reranking ({len(candidates)} -> {final_top_n})...")
+                        top_chunks = rerank(rewritten_query, candidates, top_n=final_top_n)
+                        add_log(f"Agent 2 Completed: {len(top_chunks)} chunks selected")
 
-                        # Step 4: Generate Answer
-                        add_log("Step 4: LLM answer generation...")
+                        # ── Step 4: Answer Generation ──
+                        add_log("LLM: Generating cited answer from reranked context...")
                         answer = ask(
                             question=prompt,
                             chunks=top_chunks,
-                            temperature=temp,
-                            provider=provider,
+                            temperature=active_temp,
+                            provider=active_provider,
+                            api_key=active_key,
                         )
-                        add_log(f"Answer generated ({len(answer)} chars)")
+                        add_log(f"LLM generated answer ({len(answer)} chars)")
 
-                        # Step 5: Citation Validation
-                        add_log("Step 5: Citation validation...")
+                        # ── Step 5: Citation Validation Agent ──
+                        add_log("Agent 3: Validating citation grounding & hallucination check...")
                         context_text = build_context(top_chunks)
                         validation = validate_citation(answer, context_text, llm=llm)
                         grounding_status = validation.get("status", "UNKNOWN")
                         grounding_explanation = validation.get("explanation", "")
-                        add_log(f"Grounding: {grounding_status}")
+                        add_log(f"Agent 3 Grounding: {grounding_status}")
 
-                        # Display answer
+                        # Render Answer
                         st.markdown(answer)
 
-                        # Show grounding warning if applicable
                         if grounding_status == "NOT_GROUNDED":
                             st.markdown(
                                 '<div class="warning-banner">'
-                                '⚠️ <strong>Warning:</strong> This answer may not be '
-                                'fully grounded in the source documents. '
-                                f'{grounding_explanation}'
+                                '⚠️ <strong>Hallucination Alert:</strong> This response may not be '
+                                'fully grounded in the context chunks.<br>'
+                                f'<small>{grounding_explanation}</small>'
                                 '</div>',
                                 unsafe_allow_html=True,
                             )
 
-                        # Show sources
                         sources_data = [
                             {
                                 "source": c.get("source", "unknown"),
@@ -495,21 +548,18 @@ with tab_chat:
                             for c in top_chunks
                         ]
 
-                        with st.expander(f"📚 Sources ({len(sources_data)} chunks)"):
+                        with st.expander(f"📚 Retrieved Context Sources ({len(sources_data)} chunks)"):
                             for src in sources_data:
                                 st.markdown(
                                     f'<div class="source-chunk">'
-                                    f'<div class="source-meta">'
-                                    f'📄 {src["source"]} — Page {src["page"]}'
-                                    f'</div>'
-                                    f'{src["text"][:500]}{"..." if len(src["text"]) > 500 else ""}'
+                                    f'<div class="source-meta">📄 {src["source"]} — Page {src["page"]}</div>'
+                                    f'{src["text"]}'
                                     f'</div>',
                                     unsafe_allow_html=True,
                                 )
 
-                        # Pipeline metadata
                         pipeline_meta = {
-                            "provider": provider,
+                            "provider": active_provider,
                             "original_query": prompt,
                             "rewritten_query": rewritten_query,
                             "hybrid_count": len(candidates),
@@ -517,15 +567,17 @@ with tab_chat:
                             "grounding_status": grounding_status,
                         }
 
-                        with st.expander("🔍 Pipeline Details"):
-                            st.markdown(f"- **LLM Provider**: `{provider}`")
-                            st.markdown(f"- **Original Query**: `{prompt}`")
-                            st.markdown(f"- **Rewritten Query**: `{rewritten_query}`")
-                            st.markdown(f"- **Hybrid Candidates**: {len(candidates)}")
-                            st.markdown(f"- **Reranked Top-K**: {len(top_chunks)}")
-                            st.markdown(f"- **Grounding**: `{grounding_status}`")
+                        with st.expander("🔍 Agentic Pipeline Telemetry"):
+                            col_a, col_b = st.columns(2)
+                            with col_a:
+                                st.write(f"**LLM Provider**: `{active_provider}`")
+                                st.write(f"**Original Query**: `{prompt}`")
+                                st.write(f"**Rewritten Query**: `{rewritten_query}`")
+                            with col_b:
+                                st.write(f"**Hybrid Candidates (RRF)**: `{len(candidates)}`")
+                                st.write(f"**Final Reranked Chunks**: `{len(top_chunks)}`")
+                                st.write(f"**Citation Grounding**: `{grounding_status}`")
 
-                        # Save to session state
                         st.session_state.messages.append({
                             "role": "assistant",
                             "content": answer,
@@ -535,10 +587,10 @@ with tab_chat:
                             "pipeline_meta": pipeline_meta,
                         })
 
-                        add_log("Pipeline complete ✓")
+                        add_log("Pipeline cycle completed successfully ✓")
 
                     except Exception as e:
-                        error_msg = f"❌ Error: {str(e)}"
+                        error_msg = f"❌ Pipeline Error: {str(e)}"
                         st.error(error_msg)
                         logger.error(f"Pipeline error: {e}")
                         add_log(f"ERROR: {str(e)}")
@@ -547,6 +599,5 @@ with tab_chat:
                             "content": error_msg,
                         })
 
-            # Trim conversation history to last 10 turns
-            if len(st.session_state.messages) > 20:  # 10 turns = 20 messages
+            if len(st.session_state.messages) > 20:
                 st.session_state.messages = st.session_state.messages[-20:]
