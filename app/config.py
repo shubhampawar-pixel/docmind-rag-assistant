@@ -18,6 +18,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DOCS_DIR = str(PROJECT_ROOT / "data" / "documents")
 CHROMA_DIR = str(PROJECT_ROOT / "data" / "chroma_db")
 BM25_CACHE = str(PROJECT_ROOT / "data" / "bm25_cache" / "bm25_index.pkl")
+HASH_CACHE = str(PROJECT_ROOT / "data" / "doc_hashes.json")
 
 # ─── ChromaDB ────────────────────────────────────────────────────────────────
 COLLECTION_NAME = "docmind"
@@ -29,11 +30,10 @@ EMBED_MODEL = "BAAI/bge-small-en-v1.5"
 RERANKER_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 
 # ─── LLM (Local — Ollama) ────────────────────────────────────────────────────
-# qwen2.5:0.5b is the smallest viable model (~400 MB), runs on low-spec laptops
 OLLAMA_MODEL = "qwen2.5:0.5b"
 OLLAMA_BASE_URL = "http://localhost:11434"
 
-# ─── LLM (Cloud — Google Gemini) ─────────────────────────────────────────────
+# ─── LLM (Cloud Primary — Google Gemini) ──────────────────────────────────────
 def get_gemini_api_key() -> str:
     """Retrieve Gemini API key from environment or Streamlit secrets."""
     key = os.getenv("GEMINI_API_KEY", "").strip()
@@ -49,8 +49,24 @@ def get_gemini_api_key() -> str:
 GEMINI_API_KEY = get_gemini_api_key()
 GEMINI_MODEL = "gemini-2.0-flash"
 
+# ─── LLM (Cloud Fallback — Groq API) ──────────────────────────────────────────
+def get_groq_api_key() -> str:
+    """Retrieve Groq API key from environment or Streamlit secrets."""
+    key = os.getenv("GROQ_API_KEY", "").strip()
+    if not key:
+        try:
+            import streamlit as st
+            if hasattr(st, "secrets") and "GROQ_API_KEY" in st.secrets:
+                key = str(st.secrets["GROQ_API_KEY"]).strip()
+        except Exception:
+            pass
+    return key
+
+GROQ_API_KEY = get_groq_api_key()
+GROQ_MODEL = "llama-3.1-8b-instant"
+
 # ─── LLM Provider Toggle ─────────────────────────────────────────────────────
-# Options: "auto" | "gemini" | "ollama"
+# Options: "gemini" | "groq" | "auto" | "ollama"
 def get_default_provider() -> str:
     prov = os.getenv("LLM_PROVIDER", "").strip()
     if not prov:
@@ -60,7 +76,7 @@ def get_default_provider() -> str:
                 prov = str(st.secrets["LLM_PROVIDER"]).strip()
         except Exception:
             pass
-    return prov if prov in ["auto", "gemini", "ollama"] else "gemini"
+    return prov if prov in ["gemini", "groq", "auto", "ollama"] else "gemini"
 
 LLM_PROVIDER = get_default_provider()
 

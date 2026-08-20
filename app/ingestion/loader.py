@@ -3,13 +3,27 @@ PDF Loader — Extracts text from PDF files page by page using PyMuPDF.
 
 Each page is returned as a dict with text, source filename, and page number.
 Pages with fewer than 50 characters (blank/image pages) are skipped.
+Also provides SHA-256 hash tracking for delta incremental ingestion.
 """
 
+import hashlib
 from pathlib import Path
 from typing import List, Dict
 
-import pymupdf as fitz  # PyMuPDF (new import name)
+import pymupdf as fitz  # PyMuPDF
 from loguru import logger
+
+
+def get_file_hash(file_path: str) -> str:
+    """Calculate the SHA-256 hash of a file for delta change detection."""
+    file_path = Path(file_path)
+    if not file_path.exists():
+        return ""
+    hasher = hashlib.sha256()
+    with open(file_path, "rb") as f:
+        for chunk in iter(lambda: f.read(65536), b""):
+            hasher.update(chunk)
+    return hasher.hexdigest()
 
 
 def load_pdf(file_path: str) -> List[Dict]:
@@ -20,7 +34,7 @@ def load_pdf(file_path: str) -> List[Dict]:
         file_path: Path to the PDF file.
 
     Returns:
-        List of dicts: [{"text": str, "source": str, "page": int}, ...]
+        List of dicts: [{"text": str, "source": str, "page": int, "doc_hash": str}, ...]
     """
     file_path = Path(file_path)
     if not file_path.exists():
@@ -32,6 +46,7 @@ def load_pdf(file_path: str) -> List[Dict]:
         return []
 
     source = file_path.name
+    doc_hash = get_file_hash(str(file_path))
     pages = []
 
     try:
@@ -52,6 +67,7 @@ def load_pdf(file_path: str) -> List[Dict]:
                 "text": text,
                 "source": source,
                 "page": page_num + 1,  # 1-indexed
+                "doc_hash": doc_hash,
             })
 
         doc.close()
