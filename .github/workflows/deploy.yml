@@ -1,0 +1,54 @@
+name: DocMind CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    name: Run Unit Tests & Quality Checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install chroma-hnswlib --only-binary :all:
+          pip install -r requirements.txt --only-binary chroma-hnswlib
+
+      - name: Execute Pytest Suite
+        run: |
+          pytest tests/ -v
+
+  build-and-deploy:
+    name: Build Docker Container & Trigger Deployment
+    needs: test
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: actions/docker-buildx-action@v3
+
+      - name: Build Docker Image (Dry Run)
+        run: |
+          docker build -t docmind-rag:latest .
+
+      - name: Trigger Cloud Deployment Webhook (Render / Railway / Cloud)
+        if: ${{ secrets.DEPLOY_HOOK_URL != '' }}
+        run: |
+          curl -X POST "${{ secrets.DEPLOY_HOOK_URL }}"
